@@ -31,8 +31,14 @@ def create_posts(post: Post):
     return {"data": post_dict}
 
 
-@app.get("/posts/{id}")
-def get_post(id):
-   print(id)
-   return {"post_details":"this is the post for {id}"}
+def find_post(id):
+    for p in mypost:
+        if p["id"] == id:
+            return p
 
+@app.get("/posts/{id}")
+def get_post(id: int):
+    post = find_post(id)
+    if not post:
+        return {"error": f"post with id {id} was not found"}
+    return {"post_details": post}
