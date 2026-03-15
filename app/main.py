@@ -3,17 +3,21 @@ from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
 from random import randrange
-
+import psycopg2
 
 app = FastAPI()
 
 # request GET method url:"/" (Order is not mater)
 
 class Post(BaseModel):
-    Title : str
+    title : str
     content : str
     publised : bool = True
-    rating: int 
+    # rating: int 
+
+try :
+    conn = psycopg2.connect(host,database,user,password)
+
 
 my_post = [{"Title": "Title of post1","content":"content of post1","id":1},{"title":"I like Football","content":"my fav player is ronaldo","id":2}]
 
@@ -69,4 +73,15 @@ def delete_post(id:int):
  my_post.pop(index)
  return Response(status_code=status.HTTP_204_NO_CONTENT)
  
+@app.put("/post/{id}")
+def update_post(id:int,post:Post):
+    index = find_index(id)
+    if index == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"post with id = {id} not exist")
+    
+    post_dict = post.model_dump()
+    post_dict['id'] = id
+    my_post[index] = post_dict
+    return{"date":post_dict}
 
