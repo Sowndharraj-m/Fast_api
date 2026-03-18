@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Response, status, HTTPException , Depends
+from httpx import post
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -7,7 +8,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
 from database import engine, SessionLocal ,get_db
 import models
-
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -40,42 +40,49 @@ while True:
 def root():
  return {"message": "Are you human"}
 
-@app.get("sqlalchemy")
+@app.get("/sqlalchemy")
 def test_post(db:Session = Depends(get_db)):
-   return {"status":"Success"}
+   posts = db.query(models.post).all()
+   return {"data":posts}
 
 
 @app.get("/post")
-def receiving():
-   cursor.execute("""select * from socialmedia_post""")
-   post = cursor.fetchall()
-   return{"data":post}
+def receiving(db:Session = Depends(get_db)):
+#    cursor.execute("""select * from socialmedia_post""")
+#    post = cursor.fetchall()
+ posts = db.query(models.post).all()
+ return{"data":posts}
 
 @app.post("/post")
-def create_post(Text: Post):
-    cursor.execute("""insert into socialmedia_post(title, content,published) values(%s,%s,%s)returning  *""", 
-    (Text.title,Text.content,Text.published))
+def create_post(Text: Post,b:Session = Depends(get_db)):
+    # cursor.execute("""insert into socialmedia_post(title, content,published) values(%s,%s,%s)returning  *""", 
+    # (Text.title,Text.content,Text.published))
+    # new_post = cursor.fetchone()
+    # conn.commit()
+    new_post = models.post(**Text.model_dump())
 
-    new_post = cursor.fetchone()
-    conn.commit()
+    b.add(new_post)
+    b.commit()
+    b.refresh(new_post)
+    
     return {"data": new_post}
 
 
 @app.get("/post/{id}")
-def get_post(id: int):
+def get_post(id: int,b:Session = Depends(get_db)):
 
-    cursor.execute(
-        """SELECT * FROM socialmedia_post WHERE id = %s""",(str(id,)))
-    test_post = cursor.fetchone()
-    print(test_post)
-
-    if test_post == None:
+    # cursor.execute(
+    #     """SELECT * FROM socialmedia_post WHERE id = %s""",(str(id,)))
+    # test_post = cursor.fetchone()
+    # print(test_post)
+    post = b.query(models.post).filter(models.post.id==id).first()
+    if post == None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Post with id {id} not found"
         )
 
-    return {"post_details": test_post}
+    return {"post_details": post}
 
 @app.delete("/post/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int):
