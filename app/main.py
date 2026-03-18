@@ -7,22 +7,11 @@ import time
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
 from database import engine, SessionLocal ,get_db
-import models
+import models , schemas
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-
-
-
-
-# request GET method url:"/" (Order is not mater)
-
-class Post(BaseModel):
-    title : str
-    content : str
-    published : bool = True
-    # rating: int 
 while True:
   try :
     conn = psycopg2.connect(host='localhost',database='fastapi_demo',user='postgres',password='Raj@2001',
@@ -40,21 +29,15 @@ while True:
 def root():
  return {"message": "Are you human"}
 
-@app.get("/sqlalchemy")
-def test_post(db:Session = Depends(get_db)):
-   posts = db.query(models.post).all()
-   return {"data":posts}
-
-
-@app.get("/post")
+@app.get("/post",response_model=list[schemas.PostResponse])
 def receiving(db:Session = Depends(get_db)):
 #    cursor.execute("""select * from socialmedia_post""")
 #    post = cursor.fetchall()
- posts = db.query(models.post).all()
- return{"data":posts}
+ posts = db.query(models.post)
+ return posts
 
-@app.post("/post")
-def create_post(Text: Post,b:Session = Depends(get_db)):
+@app.post("/post",response_model=schemas.PostResponse)
+def create_post(Text: schemas.PostBase,b:Session = Depends(get_db)):
     # cursor.execute("""insert into socialmedia_post(title, content,published) values(%s,%s,%s)returning  *""", 
     # (Text.title,Text.content,Text.published))
     # new_post = cursor.fetchone()
@@ -65,11 +48,11 @@ def create_post(Text: Post,b:Session = Depends(get_db)):
     b.commit()
     b.refresh(new_post)
     
-    return {"data": new_post}
+    return new_post
 
 
 @app.get("/post/{id}")
-def get_post(id: int,b:Session = Depends(get_db)):
+def get_post(id: int,b:Session = Depends(get_db),response_model=schemas.PostResponse):
 
     # cursor.execute(
     #     """SELECT * FROM socialmedia_post WHERE id = %s""",(str(id,)))
@@ -84,43 +67,27 @@ def get_post(id: int,b:Session = Depends(get_db)):
 
     return {"post_details": post}
 
-@app.delete("/post/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-
-    cursor.execute(
-        """DELETE FROM socialmedia_post 
-        WHERE id = %s RETURNING *""",
-        (str(id),)
-    )
-
-    deleted_post = cursor.fetchone()
-    conn.commit()
-
-    if deleted_post == None:
+@app.delete("/post/{id}", status_code=status.HTTP_200_OK,response_model=schemas.PostResponse)
+def delete_post(id: int , b:Session = Depends(get_db)):
+    post_query = b.query(models.post).filter(models.post.id == id)
+    post = post_query.first()
+    if post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Post with id {id} does not exist"
-        )
+            detail=f"Post with id {id} does not exist")
+    post_query.delete(synchronize_session=False)
+    b.commit()
     
 @app.put("/post/{id}")
-def update_post(id: int, post: Post):
-
-    cursor.execute("""
-        UPDATE socialmedia_post
-        SET title=%s, content=%s, published=%s
-                   
-        WHERE id=%s
-        RETURNING *
-    """, (post.title, post.content, post.published, str(id)))
-
-    updated_post = cursor.fetchone()
-    conn.commit()
-
-    if updated_post == None:
+def update_post(id: int, post: schemas.PostResponse,b:Session = Depends(get_db),response_model=[schemas.PostResponse]):
+    post_query = b.query(models.post).filter(models.post.id == id)
+    existing_post = post_query.first()
+    if existing_post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Post with id {id} not found"
         )
-
-    return {"data": updated_post}
+    post_query.update(post.model_dump(),synchronize_session=False)
+    b.commit()
+    return "post updated successfully"
 
